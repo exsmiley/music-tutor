@@ -16,6 +16,7 @@ Then open `http://localhost:5173`.
 | Module | Status |
 |--------|--------|
 | Pitch Identification | ✅ Available |
+| Tuner | ✅ Available |
 | Intervals | Coming soon |
 | Chord Quality | Coming soon |
 | Rhythm | Coming soon |
@@ -26,4 +27,4 @@ Then open `http://localhost:5173`.
 - React 18 + TypeScript + Vite
 - Tailwind CSS v4
 - React Router v6
-- Web Audio API (synthesized tones via `OscillatorNode`)
+- Web Audio API (synthesized tones via `OscillatorNode`; microphone pitch detection via `AnalyserNode` + autocorrelation)

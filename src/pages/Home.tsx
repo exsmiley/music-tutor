@@ -9,6 +9,13 @@ const MODULES = [
     icon: '🎵',
   },
   {
+    title: 'Tuner',
+    description: 'Detect the pitch of your instrument or voice in real time.',
+    href: '/tuner',
+    active: true,
+    icon: '🎙',
+  },
+  {
     title: 'Intervals',
     description: 'Recognize the distance between two notes.',
     href: '/intervals',
