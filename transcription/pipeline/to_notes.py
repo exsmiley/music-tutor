@@ -81,7 +81,34 @@ def clean_events(events: list[NoteEvent]) -> list[NoteEvent]:
             kept.append(e)
     events = kept
 
-    # Stutters: merge same-pitch notes separated by a tiny gap.
+    return _merge_stutters(events)
+
+
+def prefer_monophonic(events: list[NoteEvent], keep: str = "low") -> list[NoteEvent]:
+    """Collapse co-onset notes to one, for instruments that play one note at
+    a time (bass, a single voice). keep='low' favors the lowest pitch (bass:
+    artifacts are harmonics *above* the fundamental); keep='loud' favors the
+    strongest (vocals: the lead line over harmony/artifacts)."""
+    out: list[NoteEvent] = []
+    group: list[NoteEvent] = []
+
+    def flush() -> None:
+        if not group:
+            return
+        best = min(group, key=lambda n: n.midi if keep == "low" else -n.amplitude)
+        out.append(best)
+
+    for e in events:
+        if group and e.start - group[0].start > CO_ONSET:
+            flush()
+            group = []
+        group.append(e)
+    flush()
+    return out
+
+
+def _merge_stutters(events: list[NoteEvent]) -> list[NoteEvent]:
+    """Merge same-pitch notes separated by a tiny gap into one note."""
     merged: list[NoteEvent] = []
     last_by_pitch: dict[int, NoteEvent] = {}
     for e in events:

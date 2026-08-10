@@ -7,12 +7,14 @@ from typing import Callable
 
 from .download import fetch_audio
 from .separate import separate, detect_present, STEMS, PRESENCE_RATIO
-from .to_notes import stem_to_notes
+from .to_notes import stem_to_notes, prefer_monophonic
 from .tab_solver import solve, smooth_register, GUITAR_TUNING, BASS_TUNING
 from .render import to_ascii, to_json, to_midi
 from .quantize import track_beats
 
 TRANSCRIBABLE = [s for s in STEMS if s != "drums"]
+
+BASS_MAX_MIDI = 57  # A3 — see the bass filter below
 
 # Per-stem basic-pitch settings: (onset_threshold, frame_threshold, min_amplitude).
 # Vocals and bass carry bleed from other instruments, so they filter harder.
@@ -77,7 +79,15 @@ def run_pipeline(
         events = stem_to_notes(
             stems[stem], onset_threshold=onset, frame_threshold=frame, min_amplitude=min_amp
         )
-        if stem == "vocals":
+        # Bass and a lead vocal play one note at a time; co-onset pairs on
+        # those stems are detection artifacts (octave harmonics, bleed).
+        if stem == "bass":
+            events = prefer_monophonic(events, keep="low")
+            # Bass lines live below ~A3; higher detections are harmonics that
+            # would anchor the tab solver's hand position high up the neck.
+            events = [e for e in events if e.midi <= BASS_MAX_MIDI]
+        elif stem == "vocals":
+            events = prefer_monophonic(events, keep="loud")
             events = smooth_register(events, GUITAR_TUNING)
         tuning = BASS_TUNING if stem == "bass" else GUITAR_TUNING
         style = "bass" if stem == "bass" else ("melody" if stem == "vocals" else "guitar")
