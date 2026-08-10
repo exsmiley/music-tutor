@@ -28,18 +28,38 @@ const GUITAR_TUNING_TEX = 'e4 b3 g3 d3 a2 e2'
 const BASS_TUNING_TEX = 'g2 d2 a1 e1'
 const SIXTEENTHS_PER_BAR = 16
 
-const STEM_LABELS: Record<string, string> = {
+export const STEM_LABELS: Record<string, string> = {
   guitar: 'Guitar',
   'guitar-L': 'Guitar (left)',
   'guitar-R': 'Guitar (right)',
-  'guitar-lead': 'Guitar (lead)',
-  'guitar-rhythm': 'Guitar (rhythm)',
+  'guitar-lead': 'Lead Guitar',
+  'guitar-rhythm': 'Rhythm Guitar',
+  'guitar-1': 'Guitar 1',
+  'guitar-2': 'Guitar 2',
   bass: 'Bass',
-  vocals: 'Vocals (as guitar)',
-  other: 'Other (as guitar)',
-  piano: 'Piano (as guitar)',
-  mix: 'Full mix (as guitar)',
+  vocals: 'Vocals',
+  other: 'Other',
+  piano: 'Piano',
+  mix: 'Full mix',
 }
+
+// Short names render in the score's left margin on every system.
+const STEM_SHORT: Record<string, string> = {
+  guitar: 'Gtr',
+  'guitar-L': 'Gtr L',
+  'guitar-R': 'Gtr R',
+  'guitar-lead': 'Lead',
+  'guitar-rhythm': 'Rhy',
+  'guitar-1': 'Gtr 1',
+  'guitar-2': 'Gtr 2',
+  bass: 'Bass',
+  vocals: 'Voc',
+  other: 'Other',
+  piano: 'Pno',
+  mix: 'Mix',
+}
+
+export const stemLabel = (stem: string): string => STEM_LABELS[stem] ?? stem
 
 // General MIDI programs, 0-indexed.
 const STEM_PROGRAMS: Record<string, number> = { bass: 33 }
@@ -57,7 +77,8 @@ function trackToTex(stem: StemJson): string {
   // \tuning must not be the last metadata line: a following "(" chord would be
   // parsed as further tuning values and crash the alphaTex parser.
   const lines = [
-    `\\track "${STEM_LABELS[stem.stem] ?? stem.stem}"`,
+    `\\track "${stemLabel(stem.stem)}" "${STEM_SHORT[stem.stem] ?? stem.stem}"`,
+    ...(isBass ? ['\\clef f4'] : []),
     `\\tuning ${isBass ? BASS_TUNING_TEX : GUITAR_TUNING_TEX}`,
     `\\instrument ${STEM_PROGRAMS[stem.stem] ?? DEFAULT_PROGRAM}`,
   ]

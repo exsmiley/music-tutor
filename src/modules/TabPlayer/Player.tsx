@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AlphaTabApi } from '@coderline/alphatab'
-import { stemsToAlphaTex, type StemJson } from './alphatex'
+import { stemsToAlphaTex, stemLabel, type StemJson } from './alphatex'
 import { fileUrl, getStem, type JobMeta } from './api'
 
 // alphaTab is loaded as a classic script in index.html (its Vite plugin is
@@ -14,15 +14,15 @@ declare global {
 const SPEEDS = [0.5, 0.65, 0.8, 1]
 const TICKS_PER_SIXTEENTH = 240 // alphaTab uses 960 ticks per quarter note
 
-interface TrackState {
+interface TrackAudio {
   mute: boolean
   solo: boolean
 }
 
 export default function Player({ job }: { job: JobMeta }) {
   const [stems, setStems] = useState<StemJson[] | null>(null)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [trackState, setTrackState] = useState<Record<string, TrackState>>({})
+  const [viewed, setViewed] = useState<string | null>(null)
+  const [audioState, setAudioState] = useState<Record<string, TrackAudio>>({})
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(1)
   const [audioMode, setAudioMode] = useState<'synth' | 'original'>('synth')
@@ -39,7 +39,7 @@ export default function Player({ job }: { job: JobMeta }) {
       if (cancelled) return
       const loaded = results.filter((s): s is StemJson => s !== null)
       setStems(loaded)
-      setSelected(new Set(loaded.slice(0, 1).map(s => s.stem)))
+      setViewed(loaded[0]?.stem ?? null)
       if (loaded.length === 0) setError('No stem data found for this job.')
     })
     return () => {
@@ -47,6 +47,8 @@ export default function Player({ job }: { job: JobMeta }) {
     }
   }, [job.id, job.summary?.stems])
 
+  // One score containing every stem: the synth plays all tracks; the display
+  // renders only the viewed one.
   useEffect(() => {
     if (!containerRef.current || !stems || stems.length === 0) return
     const api = new window.alphaTab.AlphaTabApi(containerRef.current, {
@@ -55,46 +57,46 @@ export default function Player({ job }: { job: JobMeta }) {
         playerMode: window.alphaTab.PlayerMode.EnabledSynthesizer,
         soundFont: '/alphatab/soundfont/sonivox.sf2',
         scrollElement: 'html',
+        scrollOffsetY: -140, // keep the cursor below the sticky toolbar
       },
       display: { scale: 0.9 },
     })
     api.playerStateChanged.on(e => setPlaying(e.state === 1))
+    try {
+      api.tex(stemsToAlphaTex(stems, job.title), [0])
+      setError(null)
+    } catch (e) {
+      setError(`Failed to build tab: ${String(e)}`)
+    }
     apiRef.current = api
     return () => {
       cancelAnimationFrame(rafRef.current)
       api.destroy()
       apiRef.current = null
     }
-  }, [stems])
+  }, [stems, job.title])
 
-  const chosen = (stems ?? []).filter(s => selected.has(s.stem))
-
-  // Re-render the score whenever stem selection changes.
+  // Switch which track the score displays (playback is unaffected).
   useEffect(() => {
     const api = apiRef.current
-    if (!api || chosen.length === 0) return
-    try {
-      api.tex(stemsToAlphaTex(chosen, job.title), chosen.map((_, i) => i))
-      setError(null)
-    } catch (e) {
-      setError(`Failed to build tab: ${String(e)}`)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stems, selected, job.title])
+    if (!api?.score || !stems || viewed === null) return
+    const index = stems.findIndex(s => s.stem === viewed)
+    const track = api.score.tracks[index]
+    if (track) api.renderTracks([track])
+  }, [viewed, stems])
 
-  // Apply mute/solo to the rendered tracks.
+  // Apply per-track mute/solo to the synth.
   useEffect(() => {
     const api = apiRef.current
-    if (!api?.score) return
-    chosen.forEach((stem, i) => {
+    if (!api?.score || !stems) return
+    stems.forEach((stem, i) => {
       const track = api.score!.tracks[i]
       if (!track) return
-      const state = trackState[stem.stem]
+      const state = audioState[stem.stem]
       api.changeTrackMute([track], state?.mute ?? false)
       api.changeTrackSolo([track], state?.solo ?? false)
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trackState, stems, selected])
+  }, [audioState, stems])
 
   // Original-audio mode: drive the tab cursor from the <audio> element using
   // the beat grid (tempo + first-beat offset stored in the stem JSON).
@@ -146,17 +148,8 @@ export default function Player({ job }: { job: JobMeta }) {
     setAudioMode(mode)
   }
 
-  const toggleStem = (stem: string) => {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(stem)) next.delete(stem)
-      else next.add(stem)
-      return next.size > 0 ? next : prev
-    })
-  }
-
-  const toggleTrack = (stem: string, key: keyof TrackState) => {
-    setTrackState(prev => {
+  const toggleAudio = (stem: string, key: keyof TrackAudio) => {
+    setAudioState(prev => {
       const current = prev[stem] ?? { mute: false, solo: false }
       return { ...prev, [stem]: { ...current, [key]: !current[key] } }
     })
@@ -172,102 +165,114 @@ export default function Player({ job }: { job: JobMeta }) {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        {stems.map(s => {
-          const isOn = selected.has(s.stem)
-          const state = trackState[s.stem]
-          return (
-            <span key={s.stem} className="inline-flex rounded-lg border border-slate-200 overflow-hidden">
+      {/* Toolbar stays visible while the score scrolls. */}
+      <div className="sticky top-0 z-30 -mx-4 px-4 py-3 bg-slate-50/95 backdrop-blur border-b border-slate-200 mb-4">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <button
+            onClick={playPause}
+            className="bg-indigo-600 text-white text-sm font-medium px-4 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            {playing || (audioMode === 'original' && audioRef.current && !audioRef.current.paused)
+              ? '⏸ Pause'
+              : '▶ Play'}
+          </button>
+          <button
+            onClick={stop}
+            className="bg-white border border-slate-200 text-slate-600 text-sm font-medium px-3 py-1.5 rounded-lg hover:border-indigo-300 transition-colors"
+          >
+            ⏹ Stop
+          </button>
+
+          <select
+            value={speed}
+            onChange={e => changeSpeed(Number(e.target.value))}
+            className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 text-slate-600 bg-white"
+          >
+            {SPEEDS.map(s => (
+              <option key={s} value={s}>
+                {s === 1 ? 'Full speed' : `${Math.round(s * 100)}% speed`}
+              </option>
+            ))}
+          </select>
+
+          <span className="inline-flex rounded-lg border border-slate-200 overflow-hidden text-sm">
+            {(['synth', 'original'] as const).map(mode => (
               <button
-                onClick={() => toggleStem(s.stem)}
-                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                  isOn ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+                key={mode}
+                onClick={() => switchMode(mode)}
+                className={`px-3 py-1.5 font-medium transition-colors ${
+                  audioMode === mode
+                    ? 'bg-slate-700 text-white'
+                    : 'bg-white text-slate-600 hover:bg-slate-50'
                 }`}
               >
-                {s.stem}
+                {mode === 'synth' ? '🎹 Synth' : '🎧 Original'}
               </button>
-              {isOn && (
-                <>
-                  <button
-                    onClick={() => toggleTrack(s.stem, 'mute')}
-                    title="Mute (synth playback)"
-                    className={`px-2 text-xs border-l border-slate-200 ${
-                      state?.mute ? 'bg-amber-100 text-amber-700' : 'bg-white text-slate-400 hover:bg-slate-50'
-                    }`}
-                  >
-                    M
-                  </button>
-                  <button
-                    onClick={() => toggleTrack(s.stem, 'solo')}
-                    title="Solo (synth playback)"
-                    className={`px-2 text-xs border-l border-slate-200 ${
-                      state?.solo ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-400 hover:bg-slate-50'
-                    }`}
-                  >
-                    S
-                  </button>
-                </>
-              )}
-            </span>
-          )
-        })}
+            ))}
+          </span>
+
+          <a
+            href={fileUrl(job.id, 'song.mid')}
+            download
+            className="ml-auto text-sm text-indigo-600 hover:text-indigo-800 underline"
+          >
+            Download MIDI
+          </a>
+        </div>
+
+        {/* Track row: click a name to view its tab; every track plays unless
+            muted. */}
+        <div className="flex flex-wrap items-center gap-2">
+          {stems.map(s => {
+            const isViewed = viewed === s.stem
+            const state = audioState[s.stem]
+            return (
+              <span
+                key={s.stem}
+                className={`inline-flex items-stretch rounded-lg border overflow-hidden ${
+                  isViewed ? 'border-indigo-600' : 'border-slate-200'
+                }`}
+              >
+                <button
+                  onClick={() => setViewed(s.stem)}
+                  title="Show this part's tab"
+                  className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                    isViewed ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {stemLabel(s.stem)}
+                </button>
+                <button
+                  onClick={() => toggleAudio(s.stem, 'mute')}
+                  title={state?.mute ? 'Unmute (synth playback)' : 'Mute (synth playback)'}
+                  className={`px-2 text-sm border-l border-slate-200 ${
+                    state?.mute ? 'bg-slate-200 text-slate-500' : 'bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {state?.mute ? '🔇' : '🔊'}
+                </button>
+                <button
+                  onClick={() => toggleAudio(s.stem, 'solo')}
+                  title="Solo (synth playback)"
+                  className={`px-2 text-xs font-semibold border-l border-slate-200 ${
+                    state?.solo
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-white text-slate-400 hover:bg-slate-50'
+                  }`}
+                >
+                  S
+                </button>
+              </span>
+            )
+          })}
+        </div>
+
+        {audioMode === 'original' && (
+          <p className="text-xs text-slate-400 mt-2">
+            Playing the original recording; mute/solo only affect synth mode.
+          </p>
+        )}
       </div>
-
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <button
-          onClick={playPause}
-          className="bg-indigo-600 text-white text-sm font-medium px-4 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors"
-        >
-          {playing || (audioMode === 'original' && !audioRef.current?.paused) ? '⏸ Pause' : '▶ Play'}
-        </button>
-        <button
-          onClick={stop}
-          className="bg-white border border-slate-200 text-slate-600 text-sm font-medium px-3 py-1.5 rounded-lg hover:border-indigo-300 transition-colors"
-        >
-          ⏹ Stop
-        </button>
-
-        <select
-          value={speed}
-          onChange={e => changeSpeed(Number(e.target.value))}
-          className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 text-slate-600 bg-white"
-        >
-          {SPEEDS.map(s => (
-            <option key={s} value={s}>
-              {s === 1 ? 'Full speed' : `${Math.round(s * 100)}% speed`}
-            </option>
-          ))}
-        </select>
-
-        <span className="inline-flex rounded-lg border border-slate-200 overflow-hidden text-sm">
-          {(['synth', 'original'] as const).map(mode => (
-            <button
-              key={mode}
-              onClick={() => switchMode(mode)}
-              className={`px-3 py-1.5 font-medium transition-colors ${
-                audioMode === mode ? 'bg-slate-700 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {mode === 'synth' ? '🎹 Synth' : '🎧 Original audio'}
-            </button>
-          ))}
-        </span>
-
-        <a
-          href={fileUrl(job.id, 'song.mid')}
-          download
-          className="ml-auto text-sm text-indigo-600 hover:text-indigo-800 underline"
-        >
-          Download MIDI
-        </a>
-      </div>
-
-      {audioMode === 'original' && (
-        <p className="text-xs text-slate-400 mb-3">
-          Playing the original recording; the cursor follows the beat grid. Mute/solo only
-          affect synth mode.
-        </p>
-      )}
 
       <audio ref={audioRef} src={fileUrl(job.id, 'source.mp3')} preload="auto" />
 

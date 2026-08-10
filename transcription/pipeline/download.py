@@ -18,6 +18,7 @@ def fetch_audio(source: str, workdir: Path) -> Path:
     subprocess.run(
         [
             sys.executable, "-m", "yt_dlp",
+            "--no-playlist",
             "-f", "bestaudio",
             "--extract-audio",
             "--audio-format", "wav",

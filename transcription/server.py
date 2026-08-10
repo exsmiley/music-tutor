@@ -36,7 +36,7 @@ executor = ThreadPoolExecutor(max_workers=1)
 meta_lock = threading.Lock()
 
 ALLOWED_FILES = re.compile(
-    r"^(guitar|bass|vocals|other|piano|mix|drums)(-(L|R|lead|rhythm))?"
+    r"^(guitar|bass|vocals|other|piano|mix|drums)(-(L|R|lead|rhythm|1|2))?"
     r"\.(json|tab\.txt|mid)$|^(song\.mid|source\.mp3)$"
 )
 

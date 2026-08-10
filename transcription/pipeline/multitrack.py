@@ -69,7 +69,7 @@ def guitar_parts(
         similarity, r_extras = note_similarity(sides["L"], sides["R"])
         progress(f"guitar channel similarity: {similarity:.2f}")
         if similarity < MERGE_SIMILARITY:
-            return [("guitar-L", sides["L"]), ("guitar-R", sides["R"])]
+            return _name_pair(sides["L"], sides["R"])
         # Same performance on both sides: one part, keeping R-only stragglers.
         merged = sorted(sides["L"] + r_extras, key=lambda n: (n.start, n.midi))
     else:
@@ -78,6 +78,42 @@ def guitar_parts(
         )
 
     return split_voices(merged)
+
+
+def _chordness(events: list[NoteEvent]) -> float:
+    """Fraction of onset clusters that are chords (>=3 simultaneous notes)."""
+    clusters: list[list[NoteEvent]] = []
+    for e in events:
+        if clusters and e.start - clusters[-1][0].start <= CO_ONSET:
+            clusters[-1].append(e)
+        else:
+            clusters.append([e])
+    if not clusters:
+        return 0.0
+    return sum(1 for c in clusters if len(c) >= 3) / len(clusters)
+
+
+def _name_pair(
+    a: list[NoteEvent], b: list[NoteEvent]
+) -> list[tuple[str, list[NoteEvent]]]:
+    """Name two guitar performances lead/rhythm; the more chordal one is
+    rhythm. Falls back to guitar-1/guitar-2 when they play alike."""
+    chord_a, chord_b = _chordness(a), _chordness(b)
+    if abs(chord_a - chord_b) >= 0.05:
+        return (
+            [("guitar-lead", a), ("guitar-rhythm", b)]
+            if chord_a < chord_b
+            else [("guitar-lead", b), ("guitar-rhythm", a)]
+        )
+    mean_a = np.mean([n.midi for n in a]) if a else 0
+    mean_b = np.mean([n.midi for n in b]) if b else 0
+    if abs(mean_a - mean_b) >= 3:  # the higher-register part is the lead
+        return (
+            [("guitar-lead", a), ("guitar-rhythm", b)]
+            if mean_a > mean_b
+            else [("guitar-lead", b), ("guitar-rhythm", a)]
+        )
+    return [("guitar-1", a), ("guitar-2", b)]
 
 
 def split_voices(events: list[NoteEvent]) -> list[tuple[str, list[NoteEvent]]]:
