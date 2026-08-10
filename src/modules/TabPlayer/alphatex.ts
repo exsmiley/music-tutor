@@ -64,6 +64,23 @@ function trackToTex(stem: StemJson): string {
     if (!group.some(g => g.string === n.string)) group.push(n)
     groups.set(q, group)
   }
+  // Quantization can merge notes the solver placed ~150ms apart into one
+  // column; keep each column fretting-hand-reachable (≤5-fret span, open
+  // strings exempt) by dropping the outliers furthest from the median.
+  for (const [q, group] of groups) {
+    const fretted = () => group.filter(n => n.fret > 0).map(n => n.fret)
+    while (fretted().length > 1 && Math.max(...fretted()) - Math.min(...fretted()) > 5) {
+      const frets = fretted().sort((a, b) => a - b)
+      const median = frets[Math.floor(frets.length / 2)]
+      let worst = 0
+      for (let i = 1; i < group.length; i++) {
+        const dist = (n: StemNote) => (n.fret > 0 ? Math.abs(n.fret - median) : 0)
+        if (dist(group[i]) > dist(group[worst])) worst = i
+      }
+      group.splice(worst, 1)
+    }
+    groups.set(q, group)
+  }
   const onsets = [...groups.keys()].sort((a, b) => a - b)
 
   const tokens: string[] = []

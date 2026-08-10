@@ -29,12 +29,13 @@ class TabNote:
     fret: int
 
 
-# Cost weights per playing style: (span, high_fret, movement).
+# Cost weights per playing style: (span, high_fret, movement, position).
 # Bass lines move stepwise, so hand movement is penalized much harder there.
+# The position weight pulls lines toward the open/low end of the neck.
 STYLES = {
-    "guitar": (1.5, 0.3, 1.0),
-    "bass": (2.0, 0.8, 3.0),
-    "melody": (1.5, 0.4, 2.0),
+    "guitar": (1.5, 0.3, 1.0, 0.15),
+    "bass": (2.0, 0.8, 3.0, 0.30),
+    "melody": (1.5, 0.4, 2.0, 0.20),
 }
 
 
@@ -144,20 +145,21 @@ def _hand_pos(assignment: list[tuple[int, int]]) -> float:
 def _cost(
     assignment: list[tuple[int, int]],
     prev_pos: float | None,
-    weights: tuple[float, float, float],
+    weights: tuple[float, float, float, float],
 ) -> float:
-    w_span, w_high, w_move = weights
+    w_span, w_high, w_move, w_pos = weights
     fretted = [f for _, f in assignment if f > 0]
     span = (max(fretted) - min(fretted)) if len(fretted) > 1 else 0
     high = sum(max(0, f - 12) for _, f in assignment)
     move = abs(_hand_pos(assignment) - prev_pos) if prev_pos is not None and fretted else 0.0
-    return span * w_span + high * w_high + move * w_move
+    position = _hand_pos(assignment)  # open strings cost nothing
+    return span * w_span + high * w_high + move * w_move + position * w_pos
 
 
 def _viterbi(
     chords: list[list[NoteEvent]],
     tuning: list[int],
-    weights: tuple[float, float, float],
+    weights: tuple[float, float, float, float],
 ) -> list[TabNote]:
     # beam entries: (total_cost, hand_pos, path)  path = list of assignments
     beam: list[tuple[float, float | None, list]] = [(0.0, None, [])]
