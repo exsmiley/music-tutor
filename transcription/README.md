@@ -49,6 +49,11 @@ Synthesizes melody/bass with known notes and reports note-level P/R/F1
 
 ## Known limitations
 
+- Techniques: string bends and slides are detected (pipeline/techniques.py)
+  and rendered in the tab; natural/pinch harmonics, hammer-ons/pull-offs,
+  vibrato, and palm muting are not — harmonics in particular are
+  indistinguishable from ordinary notes by pitch alone and would need
+  timbre analysis. Bass gets slides but not bends; vocals get neither.
 - Meter is assumed 4/4; beat tracking gives tempo but not time signature.
 - Transcription is a draft: expect octave errors and missed ghost notes,
   especially in dense mixes.

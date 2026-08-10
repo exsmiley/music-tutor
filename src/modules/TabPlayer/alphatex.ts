@@ -13,6 +13,8 @@ export interface StemNote {
   fret: number
   q16?: number
   d16?: number
+  bend?: number // semitones of upward bend
+  slide?: boolean // slides into the next note
 }
 
 export interface StemJson {
@@ -115,13 +117,22 @@ function trackToTex(stem: StemJson): string {
     const next = i + 1 < onsets.length ? onsets[i + 1] : q + SIXTEENTHS_PER_BAR
     const held = Math.max(...group.map(n => n.d16 ?? 1))
     const dur = Math.max(1, Math.min(held, next - q, SIXTEENTHS_PER_BAR))
+    // A shift slide is only valid tab if the next column continues on the
+    // same string; otherwise drop the marker and show plain notes.
+    const nextGroup = i + 1 < onsets.length ? groups.get(onsets[i + 1])! : []
+    const effects = (n: StemNote): string => {
+      if (n.bend) return `{b (0 ${Math.round(n.bend * 2)})}` // 4 = whole step
+      if (n.slide && nextGroup.some(m => m.string === n.string)) return '{ss}'
+      return ''
+    }
+
     // Tie held notes across chunk/bar boundaries. Ties must use the explicit
     // -.string.duration form: a bare -.N is parsed as "tie on string N".
     advance(
       dur,
       denominator => {
         const beats = group
-          .map(n => `${n.fret}.${nStrings - n.string}`)
+          .map(n => `${n.fret}.${nStrings - n.string}${effects(n)}`)
           .join(' ')
         return group.length > 1 ? `(${beats}).${denominator}` : `${beats}.${denominator}`
       },

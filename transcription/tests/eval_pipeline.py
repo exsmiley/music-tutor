@@ -76,6 +76,39 @@ def evaluate(name: str, truth, wav_path: Path, tuning, style: str) -> None:
         print(f"  {name:8s} fret range used: {min(frets)}-{max(frets)}")
 
 
+def tone_glide(m0: float, m1: float, dur: float, amp: float = 0.5) -> np.ndarray:
+    """Tone gliding from midi m0 to m1 (for bend/slide synthesis)."""
+    t = np.arange(int(SR * dur)) / SR
+    midi = m0 + (m1 - m0) * (t / dur)
+    freq = 440 * 2 ** ((midi - 69) / 12)
+    phase = 2 * np.pi * np.cumsum(freq) / SR
+    env = np.minimum(1, 10 * t) * np.exp(-1.5 * t)
+    return amp * env * np.sin(phase)
+
+
+def evaluate_techniques(tmp_path: Path) -> None:
+    from pipeline import techniques
+
+    clip = np.zeros(int(SR * 6))
+    # bend: hold E4, bend up a whole step, hold F#4
+    seg = np.concatenate([tone_glide(64, 64, 0.3), tone_glide(64, 66, 0.4), tone_glide(66, 66, 0.5)])
+    clip[int(SR * 1) : int(SR * 1) + len(seg)] += seg
+    # slide: G3 up to D4
+    seg = np.concatenate([tone_glide(55, 55, 0.2), tone_glide(55, 62, 0.5), tone_glide(62, 62, 0.6)])
+    clip[int(SR * 3) : int(SR * 3) + len(seg)] += seg
+
+    wav = tmp_path / "techniques.wav"
+    sf.write(wav, np.stack([clip] * 2, 1), SR)
+    events = techniques.annotate(stem_to_notes(wav))
+    bends = [e for e in events if e.bend > 0]
+    slides = [e for e in events if e.slide]
+    # detection may center the bent note on 64 or 65; either counts
+    bend_ok = any(e.midi in (64, 65) and 1.0 <= e.bend <= 2.0 for e in bends)
+    slide_ok = any(e.slide and e.midi == 55 for e in events)
+    print(f"  bend     detected={bend_ok} ({[(e.midi, e.bend) for e in bends]})")
+    print(f"  slide    detected={slide_ok} ({[(e.midi) for e in slides]})")
+
+
 def main() -> None:
     # C major melody phrase, quarter notes at 120 BPM.
     melody = [(i * 0.5, m, 0.4) for i, m in enumerate([60, 62, 64, 65, 67, 69, 67, 64, 62, 60])]
@@ -92,6 +125,8 @@ def main() -> None:
         print("note-level accuracy against synthesized ground truth:")
         evaluate("melody", melody, melody_wav, GUITAR_TUNING, "melody")
         evaluate("bass", bass, bass_wav, BASS_TUNING, "bass")
+        print("technique detection:")
+        evaluate_techniques(tmp_path)
 
 
 if __name__ == "__main__":

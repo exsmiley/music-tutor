@@ -52,16 +52,20 @@ COLUMNS_PER_LINE = 36
 
 
 def to_json(notes: list[TabNote], stem: str, path: Path, grid=None) -> None:
-    serialized = [
-        {
+    serialized = []
+    for n in notes:
+        note = {
             "start": round(n.start, 3),
             "end": round(n.end, 3),
             "midi": n.midi,
             "string": n.string,
             "fret": n.fret,
         }
-        for n in notes
-    ]
+        if n.bend:
+            note["bend"] = n.bend
+        if n.slide:
+            note["slide"] = True
+        serialized.append(note)
     payload = {"stem": stem, "notes": serialized}
     if grid is not None:
         from .quantize import annotate

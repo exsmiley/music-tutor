@@ -6,7 +6,7 @@ and high-fret usage. Notes outside the instrument's range are transposed by
 octaves into range (needed for vocal stems routed to guitar tab).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import product
 
 from .to_notes import NoteEvent
@@ -27,6 +27,8 @@ class TabNote:
     midi: int
     string: int  # 0 = lowest-pitched string
     fret: int
+    bend: float = 0.0
+    slide: bool = False
 
 
 # Cost weights per playing style: (span, high_fret, movement, position).
@@ -78,7 +80,7 @@ def smooth_register(
         shift = 12 * round((center - median) / 12)
         for n in phrase:
             midi = _fit_to_range(n.midi + shift, tuning)
-            out.append(NoteEvent(n.start, n.end, midi, n.amplitude))
+            out.append(replace(n, midi=midi))
     return out
 
 
@@ -184,6 +186,11 @@ def _viterbi(
     notes = []
     for chord, assignment in zip(solved_chords, best_path):
         for ev, (string, fret) in zip(chord, assignment):
-            notes.append(TabNote(ev.start, ev.end, tuning[string] + fret, string, fret))
+            notes.append(
+                TabNote(
+                    ev.start, ev.end, tuning[string] + fret, string, fret,
+                    bend=ev.bend, slide=ev.slide,
+                )
+            )
     notes.sort(key=lambda n: (n.start, n.string))
     return notes

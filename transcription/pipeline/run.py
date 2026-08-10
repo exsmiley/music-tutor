@@ -7,6 +7,7 @@ from typing import Callable
 
 from .download import fetch_audio
 from .separate import separate, detect_present, STEMS, PRESENCE_RATIO
+from . import techniques
 from .to_notes import stem_to_notes, prefer_monophonic
 from .tab_solver import solve, smooth_register, GUITAR_TUNING, BASS_TUNING
 from .render import to_ascii, to_json, to_midi
@@ -89,6 +90,15 @@ def run_pipeline(
         elif stem == "vocals":
             events = prefer_monophonic(events, keep="loud")
             events = smooth_register(events, GUITAR_TUNING)
+        if stem == "vocals":
+            # Vocals glide constantly (vibrato, portamento); annotating that
+            # would drown the tab. Strip the raw bend data.
+            for e in events:
+                e.bend = 0.0
+        else:
+            # Bend/slide notation for instrument stems. Bass keeps slides but
+            # not bends — bass bends are rare and detection noise dominates.
+            events = techniques.annotate(events, allow_bends=(stem != "bass"))
         tuning = BASS_TUNING if stem == "bass" else GUITAR_TUNING
         style = "bass" if stem == "bass" else ("melody" if stem == "vocals" else "guitar")
         notes = solve(events, tuning, style=style)
