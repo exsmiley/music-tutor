@@ -12,9 +12,11 @@ ordinary notes by pitch alone. See README limitations.
 
 from .to_notes import NoteEvent
 
-BEND_GAP = 0.25        # max silence between the halves of a split bend
+BEND_GAP = 0.12        # split-bend halves are near-continuous audio
 BEND_MIN = 0.6         # in-note rise below this is vibrato/jitter, not a bend
+BEND_TAIL_MIN = 0.4    # a split bend is still rising at the first note's end
 BEND_NOTE_MIN_DUR = 0.15  # attack transients on short notes fake a rise
+BEND_TARGET_MIN_DUR = 0.1  # the bent-to note is held, not a passing tone
 BEND_MAX_STEP = 2      # bends reach at most a whole step to the next note
 SLIDE_GAP = 0.45       # detection drops notes mid-glide, so gaps run long
 SLIDE_STEP_MAX = 5     # per-note pitch step within a slide run
@@ -65,7 +67,11 @@ def _merge_split_bends(events: list[NoteEvent]) -> list[NoteEvent]:
             b is not None
             and _isolated(events, i)
             and _isolated(events, i + 1)
-            and a.bend >= BEND_MIN
+            # The first note must still be rising when it ends — an ordinary
+            # ascending melodic step has a flat tail even with pitch jitter.
+            and a.bend_tail >= BEND_TAIL_MIN
+            and a.end - a.start >= BEND_NOTE_MIN_DUR
+            and b.end - b.start >= BEND_TARGET_MIN_DUR
             and 0 < b.midi - a.midi <= BEND_MAX_STEP
             and b.start - a.end < BEND_GAP
             and not a.slide

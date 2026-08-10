@@ -10,7 +10,8 @@ class NoteEvent:
     end: float        # seconds
     midi: int
     amplitude: float  # 0..1
-    bend: float = 0.0  # semitones of upward bend within/after the note
+    bend: float = 0.0  # semitones of upward bend within the note (peak)
+    bend_tail: float = 0.0  # rise still present at the note's end
     slide: bool = False  # slides into the next event
 
 
@@ -35,13 +36,23 @@ def stem_to_notes(
         if a < min_amplitude:
             continue
         # bends are in 1/3-semitone bins relative to an arbitrary baseline;
-        # the in-note rise (max minus starting value) is what a string bend
-        # looks like. Techniques.annotate() rounds/filters this later.
-        rise = 0.0
-        if bends is not None and len(bends) > 1:
-            rise = max(0.0, (max(bends) - bends[0]) / 3.0)
+        # the in-note rise (peak minus start) is what a string bend looks
+        # like. Median-of-3 smoothing kills single-frame spikes; the tail
+        # rise (end minus start) marks bends that continue past the note,
+        # which is what distinguishes a split bend from a melodic step.
+        rise = tail = 0.0
+        if bends is not None and len(bends) > 2:
+            sm = [
+                sorted(bends[max(0, k - 1) : k + 2])[len(bends[max(0, k - 1) : k + 2]) // 2]
+                for k in range(len(bends))
+            ]
+            rise = max(0.0, (max(sm) - sm[0]) / 3.0)
+            tail = max(0.0, (sm[-1] - sm[0]) / 3.0)
         events.append(
-            NoteEvent(start=float(s), end=float(e), midi=int(p), amplitude=float(a), bend=rise)
+            NoteEvent(
+                start=float(s), end=float(e), midi=int(p), amplitude=float(a),
+                bend=rise, bend_tail=tail,
+            )
         )
     events.sort(key=lambda n: (n.start, n.midi))
     return clean_events(events)
