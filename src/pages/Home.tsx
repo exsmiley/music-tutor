@@ -16,6 +16,13 @@ const MODULES = [
     icon: '🎙',
   },
   {
+    title: 'Tab Player',
+    description: 'AI-transcribed tabs per instrument — play along with any song.',
+    href: '/tabs',
+    active: true,
+    icon: '🎼',
+  },
+  {
     title: 'Intervals',
     description: 'Recognize the distance between two notes.',
     href: '/intervals',

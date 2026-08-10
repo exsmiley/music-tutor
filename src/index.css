@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+/* alphaTab playback cursors ship unstyled by design — without these rules the
+   position indicator is invisible while playing. */
+.at-cursor-bar {
+  background: rgba(99, 102, 241, 0.12); /* current bar: soft indigo wash */
+}
+.at-cursor-beat {
+  background: rgba(99, 102, 241, 0.75); /* current beat: indigo bar */
+  width: 3px;
+}
+.at-highlight * {
+  fill: #4f46e5; /* notes light up as they sound (synth mode) */
+  stroke: #4f46e5;
+}

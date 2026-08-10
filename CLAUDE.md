@@ -28,6 +28,8 @@ src/
     Home.tsx      # module cards grid (active + coming soon)
   modules/
     PitchIdentification/index.tsx   # hear a note, pick from multiple choice
+    TabPlayer/                      # AI-transcribed tabs: library, job submission, alphaTab player
+transcription/                      # Python pipeline + FastAPI job service (see its README)
 ```
 
 **Routing**: React Router v6, routes defined in `App.tsx`. Add new modules as routes under `/modules/<name>/`.

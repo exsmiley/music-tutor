@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# transcription pipeline artifacts
+transcription/.venv
+transcription/out
+transcription/data
+
+__pycache__/
