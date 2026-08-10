@@ -36,7 +36,8 @@ executor = ThreadPoolExecutor(max_workers=1)
 meta_lock = threading.Lock()
 
 ALLOWED_FILES = re.compile(
-    r"^(guitar|bass|vocals|other|piano|mix|drums)\.(json|tab\.txt|mid)$|^(song\.mid|source\.mp3)$"
+    r"^(guitar|bass|vocals|other|piano|mix|drums)(-(L|R|lead|rhythm))?"
+    r"\.(json|tab\.txt|mid)$|^(song\.mid|source\.mp3)$"
 )
 
 
@@ -65,6 +66,9 @@ def _write_meta(job_id: str, **updates) -> dict:
 
 
 def _video_title(url: str) -> str:
+    local = Path(url)
+    if local.exists():
+        return local.stem
     try:
         result = subprocess.run(
             [sys.executable, "-m", "yt_dlp", "--no-playlist", "--print", "title", url],

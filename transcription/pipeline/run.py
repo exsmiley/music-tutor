@@ -7,7 +7,7 @@ from typing import Callable
 
 from .download import fetch_audio
 from .separate import separate, detect_present, STEMS, PRESENCE_RATIO
-from . import techniques
+from . import multitrack, techniques
 from .to_notes import stem_to_notes, prefer_monophonic
 from .tab_solver import solve, smooth_register, GUITAR_TUNING, BASS_TUNING
 from .render import to_ascii, to_json, to_midi
@@ -77,36 +77,47 @@ def run_pipeline(
     for stem in wanted:
         progress(f"transcribing {stem}")
         onset, frame, min_amp = STEM_SETTINGS.get(stem, STEM_SETTINGS["mix"])
-        events = stem_to_notes(
-            stems[stem], onset_threshold=onset, frame_threshold=frame, min_amplitude=min_amp
-        )
-        # Bass and a lead vocal play one note at a time; co-onset pairs on
-        # those stems are detection artifacts (octave harmonics, bleed).
-        if stem == "bass":
-            events = prefer_monophonic(events, keep="low")
-            # Bass lines live below ~A3; higher detections are harmonics that
-            # would anchor the tab solver's hand position high up the neck.
-            events = [e for e in events if e.midi <= BASS_MAX_MIDI]
-        elif stem == "vocals":
-            events = prefer_monophonic(events, keep="loud")
-            events = smooth_register(events, GUITAR_TUNING)
-        if stem == "vocals":
-            # Vocals glide constantly (vibrato, portamento); annotating that
-            # would drown the tab. Strip the raw bend data.
-            for e in events:
-                e.bend = 0.0
-        else:
-            # Bend/slide notation for instrument stems. Bass keeps slides but
-            # not bends — bass bends are rare and detection noise dominates.
-            events = techniques.annotate(events, allow_bends=(stem != "bass"))
-        tuning = BASS_TUNING if stem == "bass" else GUITAR_TUNING
-        style = "bass" if stem == "bass" else ("melody" if stem == "vocals" else "guitar")
-        notes = solve(events, tuning, style=style)
-        solved[stem] = notes
 
-        to_json(notes, stem, out / f"{stem}.json", grid=grid)
-        (out / f"{stem}.tab.txt").write_text(to_ascii(notes, len(tuning)))
-        to_midi({stem: notes}, out / f"{stem}.mid")
+        # A guitar stem may hold two players (Demucs separates by instrument
+        # class); multitrack tries stereo and rhythm/lead splits.
+        if stem == "guitar" and not no_separate:
+            parts = multitrack.guitar_parts(
+                stems[stem], workdir, onset, frame, min_amp, progress
+            )
+        else:
+            events = stem_to_notes(
+                stems[stem], onset_threshold=onset, frame_threshold=frame, min_amplitude=min_amp
+            )
+            # Bass and a lead vocal play one note at a time; co-onset pairs on
+            # those stems are detection artifacts (octave harmonics, bleed).
+            if stem == "bass":
+                events = prefer_monophonic(events, keep="low")
+                # Bass lines live below ~A3; higher detections are harmonics
+                # that would anchor the solver's hand position up the neck.
+                events = [e for e in events if e.midi <= BASS_MAX_MIDI]
+            elif stem == "vocals":
+                events = prefer_monophonic(events, keep="loud")
+                events = smooth_register(events, GUITAR_TUNING)
+            parts = [(stem, events)]
+
+        for part_name, events in parts:
+            if stem == "vocals":
+                # Vocals glide constantly (vibrato, portamento); annotating
+                # that would drown the tab. Strip the raw bend data.
+                for e in events:
+                    e.bend = 0.0
+            else:
+                # Bend/slide notation for instrument stems. Bass keeps slides
+                # but not bends — bass bends are rare and noise dominates.
+                events = techniques.annotate(events, allow_bends=(stem != "bass"))
+            tuning = BASS_TUNING if stem == "bass" else GUITAR_TUNING
+            style = "bass" if stem == "bass" else ("melody" if stem == "vocals" else "guitar")
+            notes = solve(events, tuning, style=style)
+            solved[part_name] = notes
+
+            to_json(notes, part_name, out / f"{part_name}.json", grid=grid)
+            (out / f"{part_name}.tab.txt").write_text(to_ascii(notes, len(tuning)))
+            to_midi({part_name: notes}, out / f"{part_name}.mid")
 
     drum_events = []
     if with_drums and not no_separate and energy.get("drums", 0) >= PRESENCE_RATIO:

@@ -30,6 +30,10 @@ const SIXTEENTHS_PER_BAR = 16
 
 const STEM_LABELS: Record<string, string> = {
   guitar: 'Guitar',
+  'guitar-L': 'Guitar (left)',
+  'guitar-R': 'Guitar (right)',
+  'guitar-lead': 'Guitar (lead)',
+  'guitar-rhythm': 'Guitar (rhythm)',
   bass: 'Bass',
   vocals: 'Vocals (as guitar)',
   other: 'Other (as guitar)',

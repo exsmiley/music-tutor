@@ -109,6 +109,34 @@ def evaluate_techniques(tmp_path: Path) -> None:
     print(f"  slide    detected={slide_ok} ({[(e.midi) for e in slides]})")
 
 
+def evaluate_multitrack() -> None:
+    from pipeline.multitrack import note_similarity, split_voices
+    from pipeline.to_notes import NoteEvent
+
+    def mk(seq, dur=0.2):
+        return [NoteEvent(t, t + dur, m, 0.7) for t, m in seq]
+
+    same = mk([(i * 0.5, 60 + i) for i in range(20)])
+    sim_same, _ = note_similarity(same, list(same))
+    different = mk([(i * 0.5, 48 + (i % 5)) for i in range(20)])
+    sim_diff, _ = note_similarity(same, different)
+    print(f"  similarity identical={sim_same:.2f} (want 1.0), different={sim_diff:.2f} (want <0.5)")
+
+    # rhythm: E2/B2/E3 chords on beats; lead: melody around E4-A4 offbeat
+    rhythm = []
+    for i in range(30):
+        t = i * 0.5
+        rhythm += [(t, 40), (t, 47), (t, 52)]
+    lead = [(i * 0.5 + 0.25, 64 + (i % 6)) for i in range(30)]
+    parts = split_voices(sorted(mk(rhythm) + mk(lead), key=lambda n: (n.start, n.midi)))
+    names = [name for name, _ in parts]
+    sizes = {name: len(ev) for name, ev in parts}
+    print(f"  voice split -> {names} sizes={sizes} (want lead+rhythm)")
+
+    single = split_voices(mk([(i * 0.25, 55 + (i % 8)) for i in range(100)]))
+    print(f"  single line stays whole -> {[n for n, _ in single]} (want ['guitar'])")
+
+
 def main() -> None:
     # C major melody phrase, quarter notes at 120 BPM.
     melody = [(i * 0.5, m, 0.4) for i, m in enumerate([60, 62, 64, 65, 67, 69, 67, 64, 62, 60])]
@@ -127,6 +155,8 @@ def main() -> None:
         evaluate("bass", bass, bass_wav, BASS_TUNING, "bass")
         print("technique detection:")
         evaluate_techniques(tmp_path)
+    print("multitrack splitting:")
+    evaluate_multitrack()
 
 
 if __name__ == "__main__":
