@@ -24,7 +24,7 @@ Requires `ffmpeg` on PATH.
 ## API server (used by the web app)
 
 ```bash
-.venv/bin/uvicorn server:app --port 8000
+.venv/bin/uvicorn server:app --port 8765
 ```
 
 The Vite dev server proxies `/api` here. Jobs are stored in `data/<id>/` with

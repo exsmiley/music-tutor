@@ -1,6 +1,6 @@
 """Transcription job-queue API.
 
-Run:  .venv/bin/uvicorn server:app --port 8000
+Run:  .venv/bin/uvicorn server:app --port 8765
 Jobs run one at a time in a worker thread; status lives in data/<id>/meta.json
 so the queue survives restarts (running jobs become 'error: interrupted').
 

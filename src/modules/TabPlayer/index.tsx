@@ -48,7 +48,7 @@ function Library({ onNew, onOpen }: { onNew: () => void; onOpen: (id: string) =>
       .catch(() =>
         setError(
           'Transcription service is not reachable. Start it with: ' +
-            'cd transcription && .venv/bin/uvicorn server:app --port 8000',
+            'cd transcription && .venv/bin/uvicorn server:app --port 8765',
         ),
       )
   }, [])
