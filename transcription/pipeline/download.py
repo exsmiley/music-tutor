@@ -18,6 +18,9 @@ def fetch_audio(source: str, workdir: Path) -> Path:
     subprocess.run(
         [
             sys.executable, "-m", "yt_dlp",
+            # YouTube extraction now needs a JS runtime to decipher stream
+            # signatures; without one it 403s. Node is on PATH here.
+            "--js-runtimes", "node",
             "--no-playlist",
             "-f", "bestaudio",
             "--extract-audio",

@@ -71,7 +71,7 @@ def _video_title(url: str) -> str:
         return local.stem
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "yt_dlp", "--no-playlist", "--print", "title", url],
+            [sys.executable, "-m", "yt_dlp", "--js-runtimes", "node", "--no-playlist", "--print", "title", url],
             capture_output=True, text=True, timeout=30, check=True,
         )
         return result.stdout.strip().splitlines()[0]
