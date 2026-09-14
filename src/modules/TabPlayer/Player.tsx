@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AlphaTabApi } from '@coderline/alphatab'
-import { stemsToAlphaTex, stemLabel, type StemJson } from './alphatex'
+import {
+  stemsToAlphaTex,
+  stemLabel,
+  stemStyle,
+  stemTuning,
+  stemHint,
+  type StemJson,
+} from './alphatex'
 import { fileUrl, getStem, type JobMeta } from './api'
 
 // alphaTab is loaded as a classic script in index.html (its Vite plugin is
@@ -226,6 +233,7 @@ export default function Player({ job }: { job: JobMeta }) {
           {stems.map(s => {
             const isViewed = viewed === s.stem
             const state = audioState[s.stem]
+            const style = stemStyle(s.stem)
             return (
               <span
                 key={s.stem}
@@ -236,10 +244,17 @@ export default function Player({ job }: { job: JobMeta }) {
                 <button
                   onClick={() => setViewed(s.stem)}
                   title="Show this part's tab"
-                  className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors ${
                     isViewed ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'
                   }`}
                 >
+                  <span aria-hidden>{style.icon}</span>
+                  <span
+                    aria-hidden
+                    className={`inline-block h-2 w-2 rounded-full ${style.dot} ${
+                      isViewed ? 'ring-2 ring-white/70' : ''
+                    }`}
+                  />
                   {stemLabel(s.stem)}
                 </button>
                 <button
@@ -276,7 +291,27 @@ export default function Player({ job }: { job: JobMeta }) {
 
       <audio ref={audioRef} src={fileUrl(job.id, 'source.mp3')} preload="auto" />
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 overflow-x-auto">
+      {/* Which instrument the score below is showing, and how it's tuned. */}
+      {viewed && (
+        <div
+          className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-t-xl border border-b-0 px-4 py-2.5 ${
+            stemStyle(viewed).chip
+          }`}
+        >
+          <span className="text-lg" aria-hidden>
+            {stemStyle(viewed).icon}
+          </span>
+          <span className="font-semibold">{stemLabel(viewed)}</span>
+          <span className="text-xs opacity-70">{stemTuning(viewed)}</span>
+          {stemHint(viewed) && (
+            <span className="w-full text-xs opacity-80 sm:w-auto sm:border-l sm:border-black/10 sm:pl-3">
+              {stemHint(viewed)}
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="bg-white rounded-b-xl border border-slate-200 p-4 overflow-x-auto">
         <div ref={containerRef} />
       </div>
     </div>

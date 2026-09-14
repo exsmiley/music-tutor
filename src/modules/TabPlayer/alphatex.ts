@@ -61,9 +61,58 @@ const STEM_SHORT: Record<string, string> = {
 
 export const stemLabel = (stem: string): string => STEM_LABELS[stem] ?? stem
 
-// General MIDI programs, 0-indexed.
+// Instrument family for a stem name, used for icons/colors/tuning. Guitar
+// variants (guitar-1, guitar-lead, guitar-L, …) all share the guitar family.
+export type Family = 'guitar' | 'bass' | 'vocals' | 'piano' | 'other' | 'mix'
+export const stemFamily = (stem: string): Family => {
+  if (stem.startsWith('guitar')) return 'guitar'
+  if (stem.startsWith('bass')) return 'bass'
+  if (stem.startsWith('vocals')) return 'vocals'
+  if (stem.startsWith('piano')) return 'piano'
+  if (stem.startsWith('mix')) return 'mix'
+  return 'other'
+}
+
+// Per-family display metadata. `dot` and `chip` are Tailwind classes so each
+// instrument is identifiable at a glance by colour, not just by reading text.
+export interface FamilyStyle {
+  icon: string
+  dot: string // solid colour swatch
+  chip: string // tinted background + text for the viewed-track header
+}
+export const FAMILY_STYLE: Record<Family, FamilyStyle> = {
+  guitar: { icon: '🎸', dot: 'bg-amber-500', chip: 'bg-amber-50 text-amber-800 border-amber-200' },
+  bass: { icon: '🎵', dot: 'bg-violet-500', chip: 'bg-violet-50 text-violet-800 border-violet-200' },
+  vocals: { icon: '🎤', dot: 'bg-rose-500', chip: 'bg-rose-50 text-rose-800 border-rose-200' },
+  piano: { icon: '🎹', dot: 'bg-sky-500', chip: 'bg-sky-50 text-sky-800 border-sky-200' },
+  other: { icon: '🎶', dot: 'bg-slate-400', chip: 'bg-slate-100 text-slate-700 border-slate-200' },
+  mix: { icon: '🎚️', dot: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+}
+export const stemStyle = (stem: string): FamilyStyle => FAMILY_STYLE[stemFamily(stem)]
+
+// Human-readable tuning for the viewed-track header.
+export const stemTuning = (stem: string): string =>
+  stemFamily(stem) === 'bass' ? 'Standard bass · E A D G' : 'Standard · E A D G B E'
+
+// Vocals are pitch-detected and laid out as a guitar tab; there is no
+// "correct" fingering, so the player says so when a vocal part is viewed.
+export const stemHint = (stem: string): string | null =>
+  stemFamily(stem) === 'vocals'
+    ? 'Sung melody shown as a guitar tab — the pitches are real, the fingering is only one way to play them.'
+    : null
+
+// General MIDI programs, 0-indexed. Distinct voices per family so parts can be
+// told apart by ear in synth mode (previously everything but bass shared one).
 const STEM_PROGRAMS: Record<string, number> = { bass: 33 }
-const DEFAULT_PROGRAM = 25
+const FAMILY_PROGRAM: Record<Family, number> = {
+  guitar: 27, // clean electric guitar
+  bass: 33, // finger electric bass
+  vocals: 54, // "Voice Oohs" — clearly not a guitar
+  piano: 0, // acoustic grand
+  other: 25, // steel guitar
+  mix: 25,
+}
+const program = (stem: string): number => STEM_PROGRAMS[stem] ?? FAMILY_PROGRAM[stemFamily(stem)]
 
 export function stemsToAlphaTex(stems: StemJson[], title: string): string {
   const tempo = Math.round(stems.find(s => s.tempo)?.tempo ?? 120)
@@ -80,7 +129,7 @@ function trackToTex(stem: StemJson): string {
     `\\track "${stemLabel(stem.stem)}" "${STEM_SHORT[stem.stem] ?? stem.stem}"`,
     ...(isBass ? ['\\clef f4'] : []),
     `\\tuning ${isBass ? BASS_TUNING_TEX : GUITAR_TUNING_TEX}`,
-    `\\instrument ${STEM_PROGRAMS[stem.stem] ?? DEFAULT_PROGRAM}`,
+    `\\instrument ${program(stem.stem)}`,
   ]
 
   // Group notes by grid onset; one string per note within a group.
