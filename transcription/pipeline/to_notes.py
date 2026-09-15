@@ -63,8 +63,8 @@ CO_ONSET = 0.08       # notes starting within 80ms count as simultaneous
 # amplitude ratio below which the weaker note is considered a ghost. The +19
 # (octave+fifth, 3rd harmonic) ratio is stricter so real power chords —
 # played at similar volume — survive.
-GHOST_INTERVALS = {12: 0.8, 24: 0.8, 19: 0.6}
-BLEED_AMP_RATIO = 0.25  # notes this much quieter than concurrent notes = bleed
+GHOST_INTERVALS = {12: 0.85, 24: 0.85, 19: 0.6}
+BLEED_AMP_RATIO = 0.30  # notes this much quieter than concurrent notes = bleed
 STUTTER_GAP = 0.06    # same-pitch retrigger gaps shorter than this get merged
 
 
@@ -90,6 +90,8 @@ def clean_events(events: list[NoteEvent]) -> list[NoteEvent]:
                 if weak.amplitude < strong.amplitude * ratio:
                     ghosts.add(weak_i)
     events = [e for i, e in enumerate(events) if i not in ghosts]
+
+    events = _despike_octaves(events)
 
     # Bleed: quiet notes overlapped by much louder ones.
     kept: list[NoteEvent] = []
@@ -126,6 +128,28 @@ def prefer_monophonic(events: list[NoteEvent], keep: str = "low") -> list[NoteEv
         group.append(e)
     flush()
     return out
+
+
+def _despike_octaves(events: list[NoteEvent]) -> list[NoteEvent]:
+    """Pull single notes detected an octave off their neighbours back in line.
+
+    basic-pitch occasionally places an isolated note a full octave from the
+    surrounding melody. Only *isolated* notes (not overlapping either
+    neighbour, so not part of a chord/voicing) whose two neighbours agree in
+    pitch are corrected — a real octave leap has neighbours that disagree.
+    """
+    ev = sorted(events, key=lambda n: (n.start, n.midi))
+    for i in range(1, len(ev) - 1):
+        c, p, q = ev[i], ev[i - 1], ev[i + 1]
+        if c.start < p.end - 0.02 or q.start < c.end - 0.02:
+            continue  # overlaps a neighbour -> part of a chord, leave it
+        if abs(p.midi - q.midi) > 2:
+            continue  # neighbours disagree -> a real leap, not a spike
+        for shift in (12, -12):
+            if abs((c.midi + shift) - p.midi) <= 2 and abs((c.midi + shift) - q.midi) <= 2:
+                c.midi += shift
+                break
+    return ev
 
 
 def _merge_stutters(events: list[NoteEvent]) -> list[NoteEvent]:

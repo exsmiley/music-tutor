@@ -31,13 +31,20 @@ class TabNote:
     slide: bool = False
 
 
-# Cost weights per playing style: (span, high_fret, movement, position).
+# Cost weights per playing style: (span, fret, movement, string).
+#   span     chord fret spread (reachability within one hand shape)
+#   fret     average fret position — pulls lines toward the low neck
+#   movement change in hand position between chords — keeps playing "in a box"
+#   string   average string index (0 = low E) — pulls lines onto the LOW,
+#            thick strings. Without this the cost is purely fret-based, which
+#            biases toward thin high strings at low frets: the opposite of how
+#            rock riffs sit on the E/A/D strings. Balanced against `fret` so it
+#            doesn't just shove everything to fret 12 on the low E.
 # Bass lines move stepwise, so hand movement is penalized much harder there.
-# The position weight pulls lines toward the open/low end of the neck.
 STYLES = {
-    "guitar": (1.5, 0.3, 1.0, 0.15),
-    "bass": (2.0, 0.8, 3.0, 0.30),
-    "melody": (1.5, 0.4, 2.0, 0.20),
+    "guitar": (1.5, 0.35, 1.6, 1.2),
+    "bass": (2.0, 0.6, 3.0, 0.8),
+    "melody": (1.5, 0.4, 2.0, 0.3),
 }
 
 
@@ -149,13 +156,16 @@ def _cost(
     prev_pos: float | None,
     weights: tuple[float, float, float, float],
 ) -> float:
-    w_span, w_high, w_move, w_pos = weights
+    w_span, w_fret, w_move, w_string = weights
     fretted = [f for _, f in assignment if f > 0]
     span = (max(fretted) - min(fretted)) if len(fretted) > 1 else 0
-    high = sum(max(0, f - 12) for _, f in assignment)
-    move = abs(_hand_pos(assignment) - prev_pos) if prev_pos is not None and fretted else 0.0
-    position = _hand_pos(assignment)  # open strings cost nothing
-    return span * w_span + high * w_high + move * w_move + position * w_pos
+    # Average fret position (open strings are free and don't move the hand).
+    fret_level = _hand_pos(assignment)
+    move = abs(fret_level - prev_pos) if prev_pos is not None and fretted else 0.0
+    # Average string index: 0 = low E (thick), 5 = high E (thin). Penalizing
+    # high indices pulls lines onto the low strings where rock riffs live.
+    string_level = sum(s for s, _ in assignment) / len(assignment)
+    return span * w_span + fret_level * w_fret + move * w_move + string_level * w_string
 
 
 def _viterbi(

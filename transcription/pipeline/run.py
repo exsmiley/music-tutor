@@ -20,10 +20,10 @@ BASS_MAX_MIDI = 57  # A3 — see the bass filter below
 # Per-stem basic-pitch settings: (onset_threshold, frame_threshold, min_amplitude).
 # Vocals and bass carry bleed from other instruments, so they filter harder.
 STEM_SETTINGS: dict[str, tuple[float, float, float]] = {
-    "guitar": (0.5, 0.3, 0.15),
+    "guitar": (0.5, 0.3, 0.20),
     "bass": (0.5, 0.3, 0.20),
     "vocals": (0.6, 0.35, 0.20),
-    "other": (0.55, 0.3, 0.15),
+    "other": (0.55, 0.3, 0.20),
     "piano": (0.5, 0.3, 0.15),
     "mix": (0.5, 0.3, 0.15),
 }
