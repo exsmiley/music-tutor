@@ -60,6 +60,7 @@ def to_json(notes: list[TabNote], stem: str, path: Path, grid=None) -> None:
             "midi": n.midi,
             "string": n.string,
             "fret": n.fret,
+            "amp": round(n.amplitude, 3),
         }
         if n.bend:
             note["bend"] = n.bend

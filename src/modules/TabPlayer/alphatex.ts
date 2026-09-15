@@ -11,6 +11,7 @@ export interface StemNote {
   midi: number
   string: number // 0 = lowest-pitched string
   fret: number
+  amp?: number // 0..1 detection strength
   q16?: number
   d16?: number
   bend?: number // semitones of upward bend
