@@ -1,5 +1,6 @@
 demucs>=4.1
-basic-pitch>=0.4
+basic-pitch>=0.4       # polyphonic stems (guitar, piano, other, full mix)
+swift-f0>=0.1.2        # monophonic stems (bass, vocals) — see mono_pitch.py
 yt-dlp>=2026.8.19  # older versions 403 on YouTube (needs a JS runtime; see download.py)
 setuptools<81  # resampy (via basic-pitch) still imports pkg_resources
 fastapi
