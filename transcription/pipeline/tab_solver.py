@@ -29,6 +29,7 @@ class TabNote:
     fret: int
     bend: float = 0.0
     slide: bool = False
+    amplitude: float = 0.0  # 0..1 detection strength, carried from the NoteEvent
 
 
 # Cost weights per playing style: (span, fret, movement, string).
@@ -199,7 +200,7 @@ def _viterbi(
             notes.append(
                 TabNote(
                     ev.start, ev.end, tuning[string] + fret, string, fret,
-                    bend=ev.bend, slide=ev.slide,
+                    bend=ev.bend, slide=ev.slide, amplitude=ev.amplitude,
                 )
             )
     notes.sort(key=lambda n: (n.start, n.string))

@@ -8,14 +8,13 @@ from typing import Callable
 from .download import fetch_audio
 from .separate import separate, detect_present, STEMS, PRESENCE_RATIO
 from . import multitrack, techniques
-from .to_notes import stem_to_notes, prefer_monophonic
-from .tab_solver import solve, smooth_register, GUITAR_TUNING, BASS_TUNING
+from .to_notes import stem_to_notes
+from .mono_pitch import track_mono
+from .tab_solver import solve, GUITAR_TUNING, BASS_TUNING
 from .render import to_ascii, to_json, to_midi
 from .quantize import track_beats
 
 TRANSCRIBABLE = [s for s in STEMS if s != "drums"]
-
-BASS_MAX_MIDI = 57  # A3 — see the bass filter below
 
 # Per-stem basic-pitch settings: (onset_threshold, frame_threshold, min_amplitude).
 # Vocals and bass carry bleed from other instruments, so they filter harder.
@@ -84,20 +83,16 @@ def run_pipeline(
             parts = multitrack.guitar_parts(
                 stems[stem], workdir, onset, frame, min_amp, progress
             )
+        elif stem in ("bass", "vocals") and not no_separate:
+            # Single-voice stems: a dedicated monophonic tracker (SwiftF0) is
+            # far cleaner here than basic-pitch — it can't invent a second
+            # note, so octave errors and over-detection largely vanish.
+            events = track_mono(stems[stem], kind=stem)
+            parts = [(stem, events)]
         else:
             events = stem_to_notes(
                 stems[stem], onset_threshold=onset, frame_threshold=frame, min_amplitude=min_amp
             )
-            # Bass and a lead vocal play one note at a time; co-onset pairs on
-            # those stems are detection artifacts (octave harmonics, bleed).
-            if stem == "bass":
-                events = prefer_monophonic(events, keep="low")
-                # Bass lines live below ~A3; higher detections are harmonics
-                # that would anchor the solver's hand position up the neck.
-                events = [e for e in events if e.midi <= BASS_MAX_MIDI]
-            elif stem == "vocals":
-                events = prefer_monophonic(events, keep="loud")
-                events = smooth_register(events, GUITAR_TUNING)
             parts = [(stem, events)]
 
         for part_name, events in parts:
